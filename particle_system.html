@@ -3,9 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Camera Feed</title>
+  <title>Interactive 3D Particle System</title>
   <style>
     body { margin: 0; overflow: hidden; }
+    canvas { display: block; position: absolute; top: 0; left: 0; z-index: 1; }
     video {
       position: absolute;
       top: 0;
@@ -15,27 +16,166 @@
       height: 100%;
       object-fit: cover;  /* Ensures the video covers the screen while maintaining aspect ratio */
     }
+    #ui-panel {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background-color: rgba(0, 0, 0, 0.5);
+      color: white;
+      padding: 10px;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      z-index: 2; /* Ensures the UI is above the video and canvas */
+    }
+    .button {
+      background-color: rgba(0, 0, 0, 0.7);
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .button:hover {
+      background-color: rgba(0, 0, 0, 0.9);
+    }
+    #fullscreen-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background-color: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 5px 10px;
+      border: none;
+      border-radius: 5px;
+      z-index: 2; /* Ensure the fullscreen button is on top */
+    }
+    #color-picker {
+      margin-top: 10px;
+    }
   </style>
 </head>
 <body>
+
+  <div id="ui-panel">
+    <button class="button" id="heart">Heart</button>
+    <button class="button" id="flower">Flower</button>
+    <button class="button" id="saturn">Saturn</button>
+    <button class="button" id="fireworks">Fireworks</button>
+    <input type="color" id="color-picker" value="#ff0000">
+  </div>
+  <button id="fullscreen-btn">Fullscreen</button>
+
+  <!-- Load the handtrackjs model -->
+  <script src="https://cdn.jsdelivr.net/npm/handtrackjs@latest/dist/handtrack.min.js"></script>
+
   <script>
-    window.onload = () => {
-      // Create a video element
-      const video = document.createElement('video');
+    window.onload = async function () {
+      let scene, camera, renderer, particles, particleSystem, fullscreenBtn, colorPicker;
+      let model = 'heart'; // Default model
+      let video, modelHand;
+
+      // Setup Three.js scene
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      renderer = new THREE.WebGLRenderer();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);  // Add renderer to the document body
+
+      // Create particles based on model
+      function createParticles(type) {
+        const geometry = new THREE.SphereGeometry(0.1, 32, 32);
+        const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        particleSystem = new THREE.Group();
+        let particle;
+        if (type === 'heart') {
+          particle = new THREE.Mesh(geometry, material);
+          particle.position.set(0, 0, 0);
+          particleSystem.add(particle);
+        } else if (type === 'flower') {
+          for (let i = 0; i < 100; i++) {
+            particle = new THREE.Mesh(geometry, material);
+            particle.position.set(Math.random() * 5 - 2.5, Math.random() * 5 - 2.5, Math.random() * 5 - 2.5);
+            particleSystem.add(particle);
+          }
+        }
+        scene.add(particleSystem);
+      }
+
+      // Fullscreen toggle
+      fullscreenBtn = document.getElementById('fullscreen-btn');
+      fullscreenBtn.addEventListener('click', () => {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen();
+        } else {
+          document.exitFullscreen();
+        }
+      });
+
+      // Initialize particles
+      createParticles(model);
+      camera.position.z = 5;
+
+      // Initialize Handtrack.js
+      modelHand = await handTrack.load();  // Load the handtrack model
+      video = document.createElement('video');
       video.width = 640;
       video.height = 480;
       video.autoplay = true;
-      video.playsInline = true; // Make sure video plays inline on mobile devices
-      document.body.appendChild(video); // Append the video element to the body
+      video.playsInline = true;
+      document.body.appendChild(video);
 
-      // Request camera access
-      navigator.mediaDevices.getUserMedia({ video: true })
-        .then(stream => {
-          video.srcObject = stream;  // Set the video element's source to the camera stream
-        })
-        .catch(err => {
+      // Ensure video data is loaded before starting hand detection
+      video.addEventListener('loadeddata', () => {
+        navigator.mediaDevices.getUserMedia({ video: {} }).then(stream => {
+          video.srcObject = stream;
+          detectHands(modelHand, video);
+        }).catch(err => {
           console.error('Error accessing the camera: ', err);
         });
+      });
+
+      // Detect hands using handtrack.js
+      async function detectHands(model, video) {
+        const predictions = await model.detect(video); // Detect hands asynchronously
+        if (predictions.length > 0) {
+          const hand = predictions[0];
+          let scaleFactor = (hand.bbox.width + hand.bbox.height) / 300;
+          particleSystem.scale.set(scaleFactor, scaleFactor, scaleFactor);
+        }
+        requestAnimationFrame(() => detectHands(model, video));
+      }
+
+      // Event listeners for UI controls
+      document.getElementById('heart').addEventListener('click', () => changeModel('heart'));
+      document.getElementById('flower').addEventListener('click', () => changeModel('flower'));
+      document.getElementById('saturn').addEventListener('click', () => changeModel('saturn'));
+      document.getElementById('fireworks').addEventListener('click', () => changeModel('fireworks'));
+
+      colorPicker = document.getElementById('color-picker');
+      colorPicker.addEventListener('input', (e) => changeParticleColor(e.target.value));
+
+      // Change particle model
+      function changeModel(newModel) {
+        scene.remove(particleSystem);
+        createParticles(newModel);
+      }
+
+      // Change particle color
+      function changeParticleColor(color) {
+        particleSystem.traverse(child => {
+          if (child instanceof THREE.Mesh) {
+            child.material.color.set(color);
+          }
+        });
+      }
+
+      // Render loop
+      function animate() {
+        requestAnimationFrame(animate);  // Continuously call animate
+        renderer.render(scene, camera);  // Render the scene and camera
+      }
+      animate();  // Start the animation loop
     };
   </script>
 </body>
