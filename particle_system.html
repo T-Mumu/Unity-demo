@@ -36,11 +36,20 @@
     .button:hover {
       background-color: rgba(0, 0, 0, 0.9);
     }
+    /* Red ball style */
+    .red-ball {
+      position: absolute;
+      width: 30px;
+      height: 30px;
+      background-color: red;
+      border-radius: 50%;
+      pointer-events: none;  /* Prevents the ball from blocking video clicks */
+    }
   </style>
 </head>
 <body>
   <div id="ui-panel">
-    <button class="button" id="testButton">测试一</button>
+    <button class="button" id="testButton">测试二</button>
   </div>
 
   <!-- Load the Handtrack.js library -->
@@ -67,11 +76,24 @@
       // Load Handtrack.js model
       const model = await handTrack.load();
 
+      // Create a red ball element
+      const redBall = document.createElement('div');
+      redBall.classList.add('red-ball');
+      document.body.appendChild(redBall);
+
       // Detect hands continuously
       const detectHands = () => {
         model.detect(video).then(predictions => {
-          // Do something with the predictions, such as draw bounding boxes
-          console.log(predictions);
+          if (predictions.length > 0) {
+            // Get the center of the bounding box (hand position)
+            const hand = predictions[0].bbox;  // [x, y, width, height]
+            const handCenterX = hand[0] + hand[2] / 2;
+            const handCenterY = hand[1] + hand[3] / 2;
+
+            // Position the red ball to follow the hand
+            redBall.style.left = `${handCenterX - redBall.offsetWidth / 2}px`;
+            redBall.style.top = `${handCenterY - redBall.offsetHeight / 2}px`;
+          }
         });
 
         // Call detectHands every 100ms
@@ -84,7 +106,7 @@
       // Test button functionality
       const testButton = document.getElementById('testButton');
       testButton.addEventListener('click', () => {
-        alert('你点击了测试一按钮');
+        alert('你点击了测试二按钮');
       });
     };
   </script>
