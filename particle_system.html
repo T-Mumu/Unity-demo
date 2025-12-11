@@ -85,12 +85,6 @@
       createParticles(model);
       camera.position.z = 5;
 
-      // Render loop
-      function animate() {
-        requestAnimationFrame(animate);
-        renderer.render(scene, camera);
-      }
-
       // Initialize Handtrack.js
       const modelHand = await handTrack.load();
       const video = document.createElement('video');
@@ -99,9 +93,12 @@
       video.autoplay = true;
       document.body.appendChild(video);
 
-      navigator.mediaDevices.getUserMedia({ video: {} }).then(stream => {
-        video.srcObject = stream;
-        detectHands(modelHand, video);
+      // Ensure video data is loaded before starting hand detection
+      video.addEventListener('loadeddata', () => {
+        navigator.mediaDevices.getUserMedia({ video: {} }).then(stream => {
+          video.srcObject = stream;
+          detectHands(modelHand, video);
+        });
       });
 
       // Detect hands using handtrack.js
@@ -142,6 +139,12 @@
 
       animate();
     };
+
+    // Render loop
+    function animate() {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+    }
   </script>
 </body>
 </html>
