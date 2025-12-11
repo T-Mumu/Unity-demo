@@ -53,19 +53,17 @@
   <button id="fullscreen-btn">Fullscreen</button>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <!-- Load Handtrack.js model -->
   <script src="https://cdn.jsdelivr.net/npm/handtrackjs@latest/dist/handtrack.min.js"></script>
 
   <script>
     window.onload = async function () {
       let scene, camera, renderer, particles, particleSystem, fullscreenBtn, colorPicker;
       let model = 'heart'; // Default model
+      let video, modelHand;
 
       // Setup Three.js scene
       scene = new THREE.Scene();
       camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-      
-      // Ensure the renderer is properly initialized
       renderer = new THREE.WebGLRenderer();
       renderer.setSize(window.innerWidth, window.innerHeight);
       document.body.appendChild(renderer.domElement);  // Add renderer to the document body
@@ -99,12 +97,12 @@
       camera.position.z = 5;
 
       // Initialize Handtrack.js
-      const modelHand = await handTrack.load();
-      const video = document.createElement('video');
+      modelHand = await handTrack.load();
+      video = document.createElement('video');
       video.width = 640;
       video.height = 480;
       video.autoplay = true;
-      video.playsInline = true; // Make sure video can play inline on mobile devices
+      video.playsInline = true;
       document.body.appendChild(video);
 
       // Ensure video data is loaded before starting hand detection
