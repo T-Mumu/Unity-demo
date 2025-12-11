@@ -1,114 +1,405 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Camera Feed with UI and Hand Tracking</title>
-  <style>
-    body { margin: 0; overflow: hidden; }
-    video {
-      position: absolute;
-      top: 0;
-      left: 0;
-      z-index: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-    #ui-panel {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      background-color: rgba(0, 0, 0, 0.5);
-      color: white;
-      padding: 10px;
-      border-radius: 10px;
-      z-index: 1;
-    }
-    .button {
-      background-color: rgba(0, 0, 0, 0.7);
-      color: white;
-      border: none;
-      padding: 10px;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-    .button:hover {
-      background-color: rgba(0, 0, 0, 0.9);
-    }
-    /* Red ball style */
-    .red-ball {
-      position: absolute;
-      width: 30px;
-      height: 30px;
-      background-color: red;
-      border-radius: 50%;
-      pointer-events: none;  /* Prevents the ball from blocking video clicks */
-    }
-  </style>
+    <meta charset="UTF-8">
+    <title>手势控制 Three.js 粒子系统</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000000; }
+        canvas { display: block; }
+
+        /* UI 和控制台样式 */
+        #fullscreen-btn, #status {
+            position: absolute;
+            z-index: 1000;
+            padding: 10px 15px;
+            font-family: Arial, sans-serif;
+            color: #fff;
+            background-color: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        #fullscreen-btn {
+            top: 20px;
+            right: 20px;
+            cursor: pointer;
+        }
+        #fullscreen-btn:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+        #status {
+            top: 20px;
+            left: 20px;
+            font-size: 14px;
+        }
+
+        /* 摄像头视频流容器 */
+        #video-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        #video {
+            /* 隐藏视频流，或者将其放置在不显眼的位置 */
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 1px;
+            height: 1px;
+            opacity: 0; 
+        }
+        
+    </style>
 </head>
 <body>
-  <div id="ui-panel">
-    <button class="button" id="testButton">测试二</button>
-  </div>
+    <div id="status">正在加载 MediaPipe...</div>
+    <button id="fullscreen-btn">全屏</button>
 
-  <!-- Load the Handtrack.js library -->
-  <script src="https://cdn.jsdelivr.net/npm/handtrackjs@latest/dist/handtrack.min.js"></script>
+    <video id="video" playsinline></video>
 
-  <script>
-    window.onload = async () => {
-      // Create a video element
-      const video = document.createElement('video');
-      video.width = 640;
-      video.height = 480;
-      video.autoplay = true;
-      video.playsInline = true;
-      document.body.appendChild(video); // Append the video element to the body
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.7/dat.gui.min.js"></script>
 
-      // Request camera access
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        video.srcObject = stream;  // Set the video element's source to the camera stream
-      } catch (err) {
-        console.error('Error accessing the camera: ', err);
-      }
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.1.0/dist/tf.min.js"></script>
 
-      // Load Handtrack.js model
-      const model = await handTrack.load();
+    <script id="vertexshader" type="x-shader/x-vertex">
+        uniform float size;
+        uniform float scale;
+        uniform float handGestureScale; // 外部手势传入的缩放值 (0.0 - 1.0)
+        attribute vec3 customColor;
+        varying vec3 vColor;
 
-      // Create a red ball element
-      const redBall = document.createElement('div');
-      redBall.classList.add('red-ball');
-      document.body.appendChild(redBall);
+        void main() {
+            vColor = customColor;
+            vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );
 
-      // Detect hands continuously
-      const detectHands = () => {
-        model.detect(video).then(predictions => {
-          if (predictions.length > 0) {
-            // Get the center of the bounding box (hand position)
-            const hand = predictions[0].bbox;  // [x, y, width, height]
-            const handCenterX = hand[0] + hand[2] / 2;
-            const handCenterY = hand[1] + hand[3] / 2;
+            // 粒子系统扩散/收缩逻辑: 结合基础缩放和手势缩放
+            // handGestureScale 接近 0.0 (合拢) 时，因子接近 1.0
+            // handGestureScale 接近 1.0 (张开) 时，因子接近 6.0
+            float expansionFactor = scale + handGestureScale * 5.0; 
+            mvPosition.xyz = position * expansionFactor; 
 
-            // Position the red ball to follow the hand
-            redBall.style.left = `${handCenterX - redBall.offsetWidth / 2}px`;
-            redBall.style.top = `${handCenterY - redBall.offsetHeight / 2}px`;
-          }
-        });
+            gl_PointSize = size * ( 1.0 / -mvPosition.z );
+            gl_Position = projectionMatrix * mvPosition;
+        }
+    </script>
 
-        // Call detectHands every 100ms
-        setTimeout(detectHands, 100);
-      };
+    <script id="fragmentshader" type="x-shader/x-fragment">
+        uniform vec3 color;
+        uniform sampler2D pointTexture;
+        uniform int shapeType; // 0: 默认, 1: 爱心, 2: 花朵, 3: 烟花
 
-      // Start detecting hands
-      detectHands();
+        varying vec3 vColor;
 
-      // Test button functionality
-      const testButton = document.getElementById('testButton');
-      testButton.addEventListener('click', () => {
-        alert('你点击了测试二按钮');
-      });
-    };
-  </script>
+        void main() {
+            vec4 textureColor = texture2D( pointTexture, gl_PointCoord );
+            vec4 finalColor = vec4( color * vColor, textureColor.a );
+
+            // 根据不同的 shapeType (模型) 来处理点形状
+            if (shapeType == 0) { // 默认圆点/方块
+                float r = 0.0, delta = 0.0;
+                vec2 center = gl_PointCoord - vec2( 0.5 );
+                r = length( center );
+                if ( r > 0.5 ) discard; // 实现圆点效果
+
+            } else if (shapeType == 1) { // 爱心/心形 (简化版 - 仅作示例)
+                vec2 uv = gl_PointCoord - vec2(0.5);
+                float a = atan(uv.y, uv.x);
+                float r = length(uv);
+                float heart = 0.5 * (1.0 - sin(a * 4.0)) * (0.6 + 0.4 * cos(a));
+                if (r > heart * 0.5) discard;
+
+            } else if (shapeType == 3) { // 烟花-模糊效果
+                 float dist = distance(gl_PointCoord, vec2(0.5));
+                 if (dist > 0.5) discard;
+                 finalColor.a *= (1.0 - dist * 2.0); // 边缘淡出效果
+
+            }
+            
+            gl_FragColor = finalColor * textureColor;
+        }
+    </script>
+
+    <script>
+        // --- Three.js 变量 ---
+        let camera, scene, renderer;
+        let geometry, material, points;
+        let uniforms;
+        let gui;
+
+        // --- MediaPipe 变量 ---
+        let videoElement;
+        let hands;
+        let videoCanvasCtx;
+        
+        // --- 配置参数 ---
+        const PARAMS = {
+            count: 50000,
+            color: '#ff44aa',
+            size: 20,
+            systemScale: 1.0, 
+            handScaleInput: 0.0, // 摄像头手势输入 (0.0 - 1.0)
+            model: 'heart' 
+        };
+
+        const SHAPE_MAP = {
+            'default': 0,
+            'heart': 1, // 爱心
+            'star': 0,  
+            'firework': 3, // 烟花
+        };
+        
+        // 关键点索引：食指尖和拇指尖 (来自 MediaPipe Hands)
+        const THUMB_TIP = 4;
+        const INDEX_FINGER_TIP = 8;
+        // 关键点的标准化距离范围 (根据测试数据调整)
+        const MIN_DISTANCE = 0.02; // 手合拢时的最小距离（标准化坐标）
+        const MAX_DISTANCE = 0.15; // 手张开时的最大距离（标准化坐标）
+
+        // --- 初始化流程 ---
+        initThreeJS();
+        initGUI();
+        initMediaPipe();
+
+        // ------------------- Three.js 初始化 -------------------
+        function initThreeJS() {
+            // 场景, 渲染器, 摄像机
+            scene = new THREE.Scene();
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+            camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 1000);
+            camera.position.z = 100;
+
+            initParticles();
+
+            // 事件监听
+            window.addEventListener('resize', onWindowResize);
+            document.getElementById('fullscreen-btn').addEventListener('click', toggleFullScreen);
+        }
+
+        function initParticles() {
+            geometry = new THREE.BufferGeometry();
+            const positions = [];
+            const colors = [];
+            const color = new THREE.Color();
+
+            // 生成随机粒子位置
+            for (let i = 0; i < PARAMS.count; i++) {
+                // 随机分布在一个球体内
+                const radius = Math.random() * 50;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(Math.random() * 2 - 1);
+
+                positions.push(radius * Math.sin(phi) * Math.cos(theta));
+                positions.push(radius * Math.sin(phi) * Math.sin(theta));
+                positions.push(radius * Math.cos(phi));
+
+                // 初始颜色 (使用一个渐变色)
+                color.setHSL(i / PARAMS.count, 1.0, 0.5);
+                colors.push(color.r, color.g, color.b);
+            }
+
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            geometry.setAttribute('customColor', new THREE.Float32BufferAttribute(colors, 3));
+
+            // Shader Uniforms
+            uniforms = {
+                color: { value: new THREE.Color(PARAMS.color) },
+                size: { value: PARAMS.size },
+                scale: { value: PARAMS.systemScale },
+                handGestureScale: { value: PARAMS.handScaleInput },
+                pointTexture: { value: new THREE.TextureLoader().load('https://threejs.org/examples/textures/sprites/disc.png') }, 
+                shapeType: { value: SHAPE_MAP[PARAMS.model] }
+            };
+
+            // 材质
+            material = new THREE.ShaderMaterial({
+                uniforms: uniforms,
+                vertexShader: document.getElementById('vertexshader').textContent,
+                fragmentShader: document.getElementById('fragmentshader').textContent,
+                blending: THREE.AdditiveBlending, 
+                depthTest: false,
+                transparent: true
+            });
+
+            points = new THREE.Points(geometry, material);
+            scene.add(points);
+            
+            animate(); // 在粒子初始化后启动渲染循环
+        }
+
+        // ------------------- UI 控制面板 -------------------
+        function initGUI() {
+            gui = new dat.GUI();
+            gui.add(PARAMS, 'size', 5, 50).onChange(function(value) {
+                uniforms.size.value = value;
+            }).name('粒子大小');
+            gui.addColor(PARAMS, 'color').onChange(function(value) {
+                uniforms.color.value.set(value);
+            }).name('粒子颜色');
+            gui.add(PARAMS, 'model', ['default', 'heart', 'firework']).onChange(function(value) {
+                uniforms.shapeType.value = SHAPE_MAP[value];
+            }).name('模型选择');
+
+            // 显示实时手势输入
+            gui.add(PARAMS, 'handScaleInput', 0.0, 1.0).step(0.01).listen().name('手势缩放 (实时)');
+        }
+
+        // ------------------- MediaPipe 初始化 -------------------
+        async function initMediaPipe() {
+            videoElement = document.getElementById('video');
+            const statusElement = document.getElementById('status');
+
+            // 1. 设置 MediaPipe Hands
+            hands = new Hands({locateFile: (file) => {
+                return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+            }});
+            
+            hands.setOptions({
+                maxNumHands: 1,
+                modelComplexity: 1,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+
+            hands.onResults(onResults);
+            statusElement.innerHTML = '正在请求摄像头权限...';
+
+            // 2. 启动摄像头
+            try {
+                const camera = new Camera(videoElement, {
+                    onFrame: async () => {
+                        await hands.send({image: videoElement});
+                    },
+                    width: 640,
+                    height: 480
+                });
+                await camera.start();
+                statusElement.innerHTML = '摄像头启动成功，正在进行手势追踪。';
+            } catch (error) {
+                statusElement.innerHTML = '错误: 无法启动摄像头或 MediaPipe 初始化失败。请检查是否在 HTTPS/localhost 环境下运行。';
+                console.error("Camera/MediaPipe Error:", error);
+            }
+        }
+        
+        // ------------------- MediaPipe 结果处理 -------------------
+        function onResults(results) {
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const handLandmarks = results.multiHandLandmarks[0];
+                
+                // 获取食指尖和拇指尖的标准化坐标 (0.0 - 1.0)
+                const thumbTip = handLandmarks[THUMB_TIP];
+                const indexTip = handLandmarks[INDEX_FINGER_TIP];
+
+                // 计算手势缩放比例
+                const scale = calculateHandScale(thumbTip, indexTip);
+                
+                // 更新 Three.js Uniform
+                updateParticlesForHandGesture(scale);
+            } else {
+                 // 没有检测到手部，保持粒子缩放值不变或重置为基础值
+                 // updateParticlesForHandGesture(0.0); 
+            }
+        }
+        
+        // ------------------- 关键计算：欧几里得距离与标准化 -------------------
+        function calculateHandScale(thumbTip, indexTip) {
+            // 计算食指尖和拇指尖在 3D 空间中的欧几里得距离 $D$
+            // MediaPipe 提供的坐标是标准化的 (0.0 - 1.0)
+            const dx = thumbTip.x - indexTip.x;
+            const dy = thumbTip.y - indexTip.y;
+            const dz = thumbTip.z - indexTip.z; // 使用 z 轴增加了 3D 准确性
+            const distance = Math.sqrt(dx*dx + dy*dy + dz*dz);
+            
+            // 将距离映射到 [0.0, 1.0] 的范围
+            // scale = (distance - MIN_DISTANCE) / (MAX_DISTANCE - MIN_DISTANCE)
+            let scale = (distance - MIN_DISTANCE) / (MAX_DISTANCE - MIN_DISTANCE);
+            
+            // 限制在 [0.0, 1.0] 范围内，0.0 = 合拢 (收缩)，1.0 = 张开 (扩散)
+            scale = Math.max(0.0, Math.min(1.0, scale));
+            
+            return scale;
+        }
+
+        // ------------------- 实时手势响应函数 -------------------
+        /**
+         * @param {number} scale - 从手势识别系统获取的手部缩放比例 (0.0 - 1.0)。
+         */
+        function updateParticlesForHandGesture(scale) {
+             PARAMS.handScaleInput = scale; // 更新 GUI 显示
+             uniforms.handGestureScale.value = scale;
+        }
+
+        // ------------------- Three.js 动画循环 -------------------
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // 粒子系统围绕 Y 轴自转
+            points.rotation.y += 0.001;
+            
+            renderer.render(scene, camera);
+        }
+        
+        // ------------------- 辅助函数 -------------------
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+        }
+        
+        // ------------------- 引入 Camera.js 依赖 (MediaPipe 示例代码常用) -------------------
+        // 为了使代码完整且易于运行，这里将 MediaPipe 示例中常用的 Camera 类定义加入
+        
+        /**
+         * Camera class based on MediaPipe Hands official example
+         * 负责处理摄像头视频流和帧发送给 MediaPipe
+         */
+        class Camera {
+            constructor(videoElement, config) {
+                this.videoElement = videoElement;
+                this.config = config;
+            }
+
+            async start() {
+                this.videoElement.srcObject = await navigator.mediaDevices.getUserMedia({
+                    'video': true
+                });
+
+                return new Promise((resolve) => {
+                    this.videoElement.onloadedmetadata = () => {
+                        this.videoElement.width = this.config.width;
+                        this.videoElement.height = this.config.height;
+                        this.videoElement.play();
+                        resolve(true);
+                        // 开始定时发送帧
+                        this.sendFrame();
+                    };
+                });
+            }
+            
+            // 使用 requestAnimationFrame 保证流畅性
+            sendFrame = async () => {
+                if (!this.videoElement.paused && !this.videoElement.ended) {
+                    await this.config.onFrame();
+                }
+                requestAnimationFrame(this.sendFrame);
+            }
+        }
+        
+    </script>
 </body>
 </html>
