@@ -5,8 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Interactive 3D Particle System</title>
   <style>
-    body { margin: 0; }
-    canvas { display: block; }
+    body { margin: 0; overflow: hidden; }
+    canvas { display: block; position: absolute; top: 0; left: 0; z-index: 1; }
+    video {
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 0;  /* Ensures the video is behind the canvas */
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
     #ui-panel {
       position: absolute;
       top: 10px;
@@ -17,6 +26,7 @@
       border-radius: 10px;
       display: flex;
       flex-direction: column;
+      z-index: 2; /* Makes sure the UI is above the video and canvas */
     }
     .button { margin-bottom: 10px; }
     #fullscreen-btn {
@@ -28,15 +38,7 @@
       padding: 5px 10px;
       border: none;
       border-radius: 5px;
-    }
-    video {
-      position: absolute;
-      top: 0;
-      left: 0;
-      z-index: -1;  /* Ensure video is in background */
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
+      z-index: 2; /* Ensure the fullscreen button is on top */
     }
   </style>
 </head>
@@ -102,6 +104,7 @@
       video.width = 640;
       video.height = 480;
       video.autoplay = true;
+      video.playsInline = true; // Make sure video can play inline on mobile devices
       document.body.appendChild(video);
 
       // Ensure video data is loaded before starting hand detection
