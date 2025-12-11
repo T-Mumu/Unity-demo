@@ -46,12 +46,102 @@
   <script src="https://cdn.jsdelivr.net/npm/handtrackjs@latest/dist/handtrack.min.js"></script>
 
   <script>
-    // 等待页面和库加载完成后再执行
     window.onload = async function () {
-      let scene, camera, renderer, particles, particleSystem, uiPanel, fullscreenBtn, colorPicker;
+      let scene, camera, renderer, particles, particleSystem, fullscreenBtn, colorPicker;
       let model = 'heart'; // Default model
 
       // Setup Three.js scene
-      function init() {
-        scene = new THREE.Scene();
-        camera = new THREE.Perspective
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      renderer = new THREE.WebGLRenderer();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      // Create particles based on model
+      function createParticles(type) {
+        const geometry = new THREE.SphereGeometry(0.1, 32, 32);
+        const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        particleSystem = new THREE.Group();
+        let particle;
+        if (type === 'heart') {
+          particle = new THREE.Mesh(geometry, material);
+          particle.position.set(0, 0, 0);
+          particleSystem.add(particle);
+        }
+        scene.add(particleSystem);
+      }
+
+      // Fullscreen toggle
+      fullscreenBtn = document.getElementById('fullscreen-btn');
+      fullscreenBtn.addEventListener('click', () => {
+        if (!document.fullscreenElement) {
+          document.documentElement.requestFullscreen();
+        } else {
+          document.exitFullscreen();
+        }
+      });
+
+      // Initialize particles
+      createParticles(model);
+      camera.position.z = 5;
+
+      // Render loop
+      function animate() {
+        requestAnimationFrame(animate);
+        renderer.render(scene, camera);
+      }
+
+      // Initialize Handtrack.js
+      const modelHand = await handTrack.load();
+      const video = document.createElement('video');
+      video.width = 640;
+      video.height = 480;
+      video.autoplay = true;
+      document.body.appendChild(video);
+
+      navigator.mediaDevices.getUserMedia({ video: {} }).then(stream => {
+        video.srcObject = stream;
+        detectHands(modelHand, video);
+      });
+
+      // Detect hands using handtrack.js
+      function detectHands(model, video) {
+        model.detect(video).then(predictions => {
+          if (predictions.length > 0) {
+            const hand = predictions[0];
+            let scaleFactor = (hand.bbox.width + hand.bbox.height) / 300;
+            particleSystem.scale.set(scaleFactor, scaleFactor, scaleFactor);
+          }
+          requestAnimationFrame(() => detectHands(model, video));
+        });
+      }
+
+      // Event listeners for UI controls
+      document.getElementById('heart').addEventListener('click', () => changeModel('heart'));
+      document.getElementById('flower').addEventListener('click', () => changeModel('flower'));
+      document.getElementById('saturn').addEventListener('click', () => changeModel('saturn'));
+      document.getElementById('fireworks').addEventListener('click', () => changeModel('fireworks'));
+
+      colorPicker = document.getElementById('color-picker');
+      colorPicker.addEventListener('input', (e) => changeParticleColor(e.target.value));
+
+      // Change particle model
+      function changeModel(newModel) {
+        scene.remove(particleSystem);
+        createParticles(newModel);
+      }
+
+      // Change particle color
+      function changeParticleColor(color) {
+        particleSystem.traverse(child => {
+          if (child instanceof THREE.Mesh) {
+            child.material.color.set(color);
+          }
+        });
+      }
+
+      animate();
+    };
+  </script>
+</body>
+</html>
