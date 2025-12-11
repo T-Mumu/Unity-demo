@@ -42,7 +42,7 @@
   <button id="fullscreen-btn">Fullscreen</button>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <!-- 手势识别库 -->
+  <!-- Load Handtrack.js model -->
   <script src="https://cdn.jsdelivr.net/npm/handtrackjs@latest/dist/handtrack.min.js"></script>
 
   <script>
@@ -137,14 +137,13 @@
         });
       }
 
-      animate();
+      // Render loop
+      function animate() {
+        requestAnimationFrame(animate);
+        renderer.render(scene, camera);
+      }
+      animate();  // Start the animation loop
     };
-
-    // Render loop
-    function animate() {
-      requestAnimationFrame(animate);
-      renderer.render(scene, camera);
-    }
   </script>
 </body>
 </html>
