@@ -53,9 +53,11 @@
       // Setup Three.js scene
       scene = new THREE.Scene();
       camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      
+      // Ensure the renderer is properly initialized
       renderer = new THREE.WebGLRenderer();
       renderer.setSize(window.innerWidth, window.innerHeight);
-      document.body.appendChild(renderer.domElement);
+      document.body.appendChild(renderer.domElement);  // Add renderer to the document body
 
       // Create particles based on model
       function createParticles(type) {
@@ -139,8 +141,8 @@
 
       // Render loop
       function animate() {
-        requestAnimationFrame(animate);
-        renderer.render(scene, camera);
+        requestAnimationFrame(animate);  // Continuously call animate
+        renderer.render(scene, camera);  // Render the scene and camera
       }
       animate();  // Start the animation loop
     };
