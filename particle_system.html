@@ -55,7 +55,7 @@
       camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
       renderer = new THREE.WebGLRenderer();
       renderer.setSize(window.innerWidth, window.innerHeight);
-      document.body.appendChild(renderer.domElement); // Append renderer to the body
+      document.body.appendChild(renderer.domElement);
 
       // Create particles based on model
       function createParticles(type) {
@@ -137,13 +137,14 @@
         });
       }
 
-      // Render loop
-      function animate() {
-        requestAnimationFrame(animate);  // Continuously call animate
-        renderer.render(scene, camera);  // Render the scene and camera
-      }
-      animate();  // Start the animation loop
+      animate();
     };
+
+    // Render loop
+    function animate() {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+    }
   </script>
 </body>
 </html>
