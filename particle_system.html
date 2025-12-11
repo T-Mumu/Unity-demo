@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interactive 3D Particle System</title>
+  <style>
+    body { margin: 0; }
+    canvas { display: block; }
+    #ui-panel {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background-color: rgba(0, 0, 0, 0.5);
+      color: white;
+      padding: 10px;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+    }
+    .button { margin-bottom: 10px; }
+    #fullscreen-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background-color: rgba(0, 0, 0, 0.7);
+      color: white;
+      padding: 5px 10px;
+      border: none;
+      border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div id="ui-panel">
+    <button class="button" id="heart">Heart</button>
+    <button class="button" id="flower">Flower</button>
+    <button class="button" id="saturn">Saturn</button>
+    <button class="button" id="fireworks">Fireworks</button>
+    <input type="color" id="color-picker" value="#ff0000">
+  </div>
+  <button id="fullscreen-btn">Fullscreen</button>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- 手势识别库 -->
+  <script src="https://cdn.jsdelivr.net/npm/handtrackjs@latest/dist/handtrack.min.js"></script>
+
+  <script>
+    // 等待页面和库加载完成后再执行
+    window.onload = async function () {
+      let scene, camera, renderer, particles, particleSystem, uiPanel, fullscreenBtn, colorPicker;
+      let model = 'heart'; // Default model
+
+      // Setup Three.js scene
+      function init() {
+        scene = new THREE.Scene();
+        camera = new THREE.Perspective
